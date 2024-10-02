@@ -1,45 +1,25 @@
 import os
 import tarfile
 import argparse
-import shutil
 import time
+import datetime
 
 
 class ShellEmulator:
-    def __init__(self, username, hostname, vfs, startup_script):
+    def __init__(self, username, hostname, vfs, script):
         self.username = username
         self.hostname = hostname
-        self.vfs_root = "/tmp/vfs_root"
-        self.cwd = self.vfs_root
         self.start_time = time.time()
+        self.vfs_archive = tarfile.open(vfs, "r")
+        self.cwd = "/"
 
-        self.extract_fs(vfs)
-
-        if startup_script:
-            self.run_script(startup_script)
-
-    def extract_fs(self, archive_path):
-        if os.path.exists(self.vfs_root):
-            shutil.rmtree(self.vfs_root)
-        os.makedirs(self.vfs_root)
-
-        with tarfile.open(archive_path, "r") as tar:
-            tar.extractall(self.vfs_root)
+        if script:
+            self.run_script(script)
 
     def run_script(self, script_path):
         with open(script_path, 'r') as script:
             for line in script:
                 self.execute_command(line.strip())
-
-    def prompt(self):
-        relative_path = os.path.relpath(self.cwd, self.vfs_root)
-
-        if relative_path == ".":
-            relative_path = "/"
-        else:
-            relative_path = "/" + relative_path.replace("\\", "/")
-
-        return f"{self.username}@{self.hostname}:{relative_path}$ "
 
     def execute_command(self, command):
         if not command:
@@ -58,47 +38,98 @@ class ShellEmulator:
         elif cmd == "uname":
             self.uname(args)
         elif cmd == "uptime":
-            self.uptime()
+            self.uptime(args)
         else:
             print(f"{cmd}: command not found")
 
+    def prompt(self):
+        if self.cwd == "/":
+            return f"{self.username}@{self.hostname}:{self.cwd}$ "
+        else:
+            return f"{self.username}@{self.hostname}:{self.cwd.rstrip('/')}$ "
+
     def ls(self, args):
         path = self.cwd if not args else os.path.join(self.cwd, args[0])
-        if os.path.exists(path):
-            for entry in os.listdir(path):
-                print(entry)
-        else:
-            print(f"ls: cannot access '{path}': No such file or directory")
+        path = path.lstrip('/')
+        entries = [m for m in self.vfs_archive.getmembers() if m.name.startswith(path)]
+
+        if not entries:
+            return
+
+        unique_entries = set()
+
+        for entry in entries:
+            relative_path = entry.name[len(path):].strip("/").split("/")[0]
+            if relative_path:
+                unique_entries.add(relative_path)
+
+        if not unique_entries:
+            return
+
+        for entry_name in sorted(unique_entries):
+            print(entry_name)
 
     def cd(self, args):
         if not args:
-            path = self.vfs_root
-        else:
-            path = os.path.join(self.cwd, args[0])
+            self.cwd = "/"
+            return
 
-        real_path = os.path.abspath(path)
+        target = args[0]
+        if target == "..":
+            if self.cwd == "/":
+                return
+            else:
+                self.cwd = os.path.dirname(self.cwd.rstrip("/"))
+                if not self.cwd:
+                    self.cwd = "/"
+                return
+        elif target == ".":
+            return
 
-        if os.path.relpath(real_path, self.vfs_root).startswith(".."):
-            print("cd: Permission denied")
-        elif os.path.exists(real_path) and os.path.isdir(real_path):
-            self.cwd = real_path
-        else:
-            print(f"cd: {real_path}: No such file or directory")
+        new_dir = os.path.join(self.cwd, target).replace("\\", "/")
+        new_dir = os.path.normpath(new_dir).replace("\\", "/")
+        potential_dirs = [m.name for m in self.vfs_archive.getmembers() if m.isdir()]
+        abs_new_dir = new_dir.lstrip("/")
+
+        for dir_entry in potential_dirs:
+            if dir_entry.strip("/") == abs_new_dir:
+                self.cwd = "/" + abs_new_dir + "/"
+                return
+
+        print(f"cd: {target}: No such file or directory")
 
     def exit_shell(self):
         print("Exiting shell...")
         exit(0)
 
     def uname(self, args):
-        if args and args[0] == "-a":
-            print(f"Linux {self.hostname} 5.15.0-1-generic x86_64 GNU/Linux")
+        if args:
+            if args[0] == "-a":
+                print(f"Linux {self.hostname} 5.15.0-1-generic x86_64 GNU/Linux")
+            else:
+                print(f"uname: invalid option -- '{''.join(args)}'")
         else:
             print("Linux")
 
-    def uptime(self):
+    def uptime(self, args):
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        users = 1  # количество пользователей - в эмуляторе считаем 1
         uptime_seconds = time.time() - self.start_time
+        if args:
+            if "-p" in args:
+                uptime_minutes = int(uptime_seconds // 60)
+                print(f"up {uptime_minutes} minutes")
+                return
+            elif "-s" in args:
+                start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.start_time))
+                print(f"Startup time: {start_time}")
+                return
+            else:
+                print(f"uptime: invalid option -- '{''.join(args)}'")
+                return
+
         uptime_string = time.strftime("%H:%M:%S", time.gmtime(uptime_seconds))
-        print(f"Uptime: {uptime_string}")
+        print(f"{current_time} | up {uptime_string} | {users} user(s)")
 
     def run(self):
         try:
@@ -110,15 +141,15 @@ class ShellEmulator:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Эмулятор командной оболочки")
-    parser.add_argument("--username", required=True, help="Имя пользователя")
-    parser.add_argument("--hostname", required=True, help="Имя компьютера")
-    parser.add_argument("--vfs", required=True, help="Путь к виртуальной файловой системе (tar архив)")
-    parser.add_argument("--script", required=False, help="Путь к стартовому скрипту", default=None)
+    parser = argparse.ArgumentParser(description="Эмулятор оболочки UNIX-подобной ОС.")
+    parser.add_argument("username", help="Имя пользователя для приглашения к вводу.")
+    parser.add_argument("hostname", help="Имя компьютера для приглашения к вводу.")
+    parser.add_argument("vfs", help="Путь к tar-архиву виртуальной файловой системы.")
+    parser.add_argument("script", nargs='?', help="Путь к стартовому скрипту.", default=None)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    shell = ShellEmulator(args.username, args.hostname, args.vfs, args.startup_script)
+    shell = ShellEmulator(args.username, args.hostname, args.vfs, args.script)
     shell.run()
