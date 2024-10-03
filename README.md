@@ -26,11 +26,17 @@
 
 Переход в директорию и вывод её содержимого:
 
+![image](https://github.com/user-attachments/assets/9fd970f0-2f7a-4365-9f3e-acb24cef2379)
+
 
 Выполнение команды uname:
 
+![image](https://github.com/user-attachments/assets/da34747a-92f1-4c4d-9806-cda044eb09b1)
+
 
 Пример работы команды uptime с опциями:
+
+![image](https://github.com/user-attachments/assets/f1bc9c19-37a1-4370-a4f1-dbf1082a3788)
 
 
 **Результаты прогона тестов:**
