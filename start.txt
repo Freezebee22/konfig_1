@@ -1,0 +1,10 @@
+ls
+cd papka
+cd ..
+uname -a
+cd papka/mama
+ls
+cd
+ls papka/mama
+uptime
+exit
