@@ -49,20 +49,27 @@ class ShellEmulator:
             return f"{self.username}@{self.hostname}:{self.cwd.rstrip('/')}$ "
 
     def ls(self, args):
-        path = self.cwd if not args else os.path.join(self.cwd, args[0])
+        if not args:
+            path = self.cwd
+        else:
+            target = args[0]
+            if target == "..":
+                path = os.path.dirname(self.cwd.rstrip("/"))
+                if not path:
+                    path = "/"
+            else:
+                path = os.path.join(self.cwd, target)
+
         path = path.lstrip('/')
         entries = [m for m in self.vfs_archive.getmembers() if m.name.startswith(path)]
-
         if not entries:
             return
 
         unique_entries = set()
-
         for entry in entries:
             relative_path = entry.name[len(path):].strip("/").split("/")[0]
             if relative_path:
                 unique_entries.add(relative_path)
-
         if not unique_entries:
             return
 
@@ -70,7 +77,7 @@ class ShellEmulator:
             print(entry_name)
 
     def cd(self, args):
-        if not args:
+        if not args or args[0] == "/":
             self.cwd = "/"
             return
 
@@ -142,9 +149,9 @@ class ShellEmulator:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Эмулятор оболочки UNIX-подобной ОС.")
-    parser.add_argument("username", help="Имя пользователя для приглашения к вводу.")
-    parser.add_argument("hostname", help="Имя компьютера для приглашения к вводу.")
-    parser.add_argument("vfs", help="Путь к tar-архиву виртуальной файловой системы.")
+    parser.add_argument("username", nargs='?', help="Имя пользователя для приглашения к вводу.", default="username")
+    parser.add_argument("hostname", nargs='?', help="Имя компьютера для приглашения к вводу.", default="hostname")
+    parser.add_argument("vfs", nargs='?', help="Путь к tar-архиву виртуальной файловой системы.", default="tartar.tar")
     parser.add_argument("script", nargs='?', help="Путь к стартовому скрипту.", default=None)
     return parser.parse_args()
 
