@@ -149,10 +149,13 @@ class ShellEmulator:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Эмулятор оболочки UNIX-подобной ОС.")
-    parser.add_argument("username", nargs='?', help="Имя пользователя для приглашения к вводу.", default="username")
-    parser.add_argument("hostname", nargs='?', help="Имя компьютера для приглашения к вводу.", default="hostname")
-    parser.add_argument("vfs", nargs='?', help="Путь к tar-архиву виртуальной файловой системы.", default="tartar.tar")
-    parser.add_argument("script", nargs='?', help="Путь к стартовому скрипту.", default=None)
+    parser.add_argument("--username", required=False, help="Имя пользователя для приглашения к вводу.",
+                        default="username")
+    parser.add_argument("--hostname", required=False, help="Имя компьютера для приглашения к вводу.",
+                        default="hostname")
+    parser.add_argument("--vfs", required=False, help="Путь к tar-архиву виртуальной файловой системы.",
+                        default="tartar.tar")
+    parser.add_argument("--script", required=False, help="Путь к стартовому скрипту.", default=None)
     return parser.parse_args()
 
 
